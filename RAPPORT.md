@@ -37,11 +37,11 @@ Pour chacune des vulnérabilités identifiées, les pratiques de sécurité ont 
 - Mise à jour du `package.json` de `express` vers la version sécurisée recommandée (`^4.21.1`).
 - Mise à jour de toutes les arborescences avec package-lock.
 
-### C. Correction Docker (Durcissement)
-- Passage à l'image plus légère et récente : `node:20-alpine`.
-- Ajout de la commande `RUN apk upgrade --no-cache` pour corriger les bibliothèques OS natives vulnérables et instables détectées au second scan de Trivy (`Busybox`, `libcrypto`).
-- Ajout du mot-clé `USER node` pour empêcher l'exécution de l'application avec les privilèges administrateurs de `root` dans le conteneur.
-- Ajout du flag `--only=production` à l'installation NPM pour amoindrir la surface d'attaque et la taille de l'image.
+### C. **Renforcement du Conteneur (Container Security) :**
+    *   Utilisation d'une image de base Node.js plus récente et allégée (`node:20-alpine`).
+    *   Mise en place d'un build **multi-stage** Docker pour ne copier que les fichiers nécessaires et **supprimer complètement npm** de l'image de production finale, éliminant ainsi les vulnérabilités résiduelles liées aux outils de build globaux (ex: minimatch dans npm).
+    *   Application du principe de moindre privilège en exécutant l'application en tant qu'utilisateur non-root (`USER node`).
+    *   Ajout du flag `--only=production` à l'installation NPM pour amoindrir la surface d'attaque et la taille de l'image.
 
 ---
 
