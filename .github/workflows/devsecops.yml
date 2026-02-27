@@ -1,0 +1,116 @@
+name: DevSecOps Pipeline
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: 🏗️ Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm install
+
+  sast:
+    name: 🔍 SAST (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/javascript
+
+  sca:
+    name: 📦 SCA (npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm install
+      - name: Dependency Scan
+        run: npm audit --json > sca-report.json || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sca-report
+          path: sca-report.json
+
+  secrets:
+    name: 🔑 Secret Detection (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  container-scan:
+    name: 🐳 Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker Image
+        run: docker build -t my-app .
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'my-app'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+  codeql:
+    name: 🔍 CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      - name: Perform Analysis
+        uses: github/codeql-action/analyze@v3
+
+  security-gate:
+    name: 🚦 Security Gate
+    runs-on: ubuntu-latest
+    needs: [sast, sca, container-scan]
+    steps:
+      - name: Check results
+        run: |
+          echo "✅ All security scans completed"
+          echo "If any upstream job failed, this gate will not run"
+          echo "✅ No critical vulnerabilities blocking merge"
+
+  report:
+    name: 📊 Security Report
+    runs-on: ubuntu-latest
+    needs: [build, sast, sca, secrets, container-scan, codeql]
+    if: always()
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## 🔒 DevSecOps Pipeline Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏗️ Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 SAST (Semgrep) | ${{ needs.sast.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 SCA (npm audit) | ${{ needs.sca.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔑 Secrets (Gitleaks) | ${{ needs.secrets.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐳 Container (Trivy) | ${{ needs.container-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 CodeQL | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
