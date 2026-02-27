@@ -7,7 +7,8 @@ app.get('/', (req, res) => {
 });
 
 // Vulnérabilité intentionnelle : Secret en dur
-const apiKey = "SK-1234567890ABCDEF1234567890";
+// CORRECTION : Secret géré via variable d'environnement
+const apiKey = process.env.API_KEY || "default_safe_key";
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
